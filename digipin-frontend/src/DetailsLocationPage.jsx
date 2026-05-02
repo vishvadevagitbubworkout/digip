@@ -58,7 +58,7 @@ function DetailsLocationPage({ tempUserId, onNext }) {
       });
 
       setMessage("Email OTP sent successfully");
-      startEmailCooldown(30);
+      startCooldown(30);
       
     } catch (err) {
       setMessage(err.message);
@@ -66,7 +66,7 @@ function DetailsLocationPage({ tempUserId, onNext }) {
       setSendingOtp(false);
     }
   };
-const startEmailCooldown = (seconds = 30) => {
+const startCooldown = (seconds = 30) => {
   setEmailCooldown(seconds);
 
   const timer = setInterval(() => {
@@ -271,7 +271,7 @@ const startEmailCooldown = (seconds = 30) => {
     : sendingOtp
     ? "Sending..."
     : emailCooldown > 0
-    ? `Resend Email OTP in ${emailCooldown}s`
+    ? `Resend in ${emailCooldown}s`
     : "Send Email OTP"}
 </button>
 

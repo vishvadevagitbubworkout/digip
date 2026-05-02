@@ -240,38 +240,29 @@ exports.loginWithPin = async (req, res) => {
       return res.status(400).json({ error: "Phone/email and PIN required" });
     }
 
-    if (!/^[0-9]{5}$/.test(pin)) {
-      return res.status(400).json({ error: "PIN must be exactly 5 digits" });
-    }
-
-    const cleanIdentifier = identifier.trim().toLowerCase();
-
     const user = await User.findOne({
-      $or: [{ phone: identifier.trim() }, { email: cleanIdentifier }],
+      $or: [{ phone: identifier }, { email: identifier.toLowerCase() }],
     });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    if (!user) return res.status(404).json({ error: "User not found" });
 
     if (user.lockUntil && user.lockUntil > new Date()) {
-      const waitMinutes = Math.ceil((user.lockUntil - new Date()) / 60000);
       return res.status(429).json({
-        error: `Too many wrong PIN attempts. Try again after ${waitMinutes} minute(s).`,
+        error: "Account locked. Try again later.",
       });
     }
 
     const match = await bcrypt.compare(pin, user.pin);
 
     if (!match) {
-      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      user.loginAttempts += 1;
 
       if (user.loginAttempts >= 5) {
         user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
 
         return res.status(429).json({
-          error: "Too many wrong PIN attempts. Account locked for 15 minutes.",
+          error: "Too many wrong PIN attempts. Locked for 15 minutes.",
         });
       }
 
@@ -287,18 +278,10 @@ exports.loginWithPin = async (req, res) => {
     await user.save();
 
     res.json({
-      message: "Login successful",
-      userId: user._id,
-      name: user.name,
-      phone: user.phone,
-      email: user.email,
+      message: "Login success",
       digipin: user.digipin,
-      address: user.address,
-      lat: user.lat,
-      lon: user.lon,
     });
   } catch (err) {
-    console.error("LOGIN ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 };
