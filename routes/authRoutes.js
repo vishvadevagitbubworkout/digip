@@ -9,10 +9,12 @@ const {
   loginWithPin,
 } = require("../controllers/authController");
 
-router.post("/send-otp", sendOtp);
-router.post("/verify-otp", verifyOtp);
-router.post("/send-email-otp", sendEmailOtp);
-router.post("/verify-email-otp", verifyEmailOtp);
-router.post("/login", loginWithPin);
+const { otpLimiter, loginLimiter } = require("../middleware/rateLimiter");
+
+router.post("/send-otp", otpLimiter, sendOtp);
+router.post("/verify-otp", otpLimiter, verifyOtp);
+router.post("/send-email-otp", otpLimiter, sendEmailOtp);
+router.post("/verify-email-otp", otpLimiter, verifyEmailOtp);
+router.post("/login", loginLimiter, loginWithPin);
 
 module.exports = router;

@@ -7,6 +7,15 @@ const sendEmailOtpUtil = require("../utils/sendEmailOtp");
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
+const OTP_EXPIRY_MINUTES = 5;
+const OTP_COOLDOWN_SECONDS = 30;
+const MAX_OTP_ATTEMPTS = 5;
+
+const makeExpiry = () =>
+  new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+const makeCooldown = () =>
+  new Date(Date.now() + OTP_COOLDOWN_SECONDS * 1000);
 /* ---------------- PHONE OTP ---------------- */
 
 exports.sendOtp = async (req, res) => {
@@ -17,21 +26,32 @@ exports.sendOtp = async (req, res) => {
       return res.status(400).json({ error: "Phone required" });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
     let tempUser = await TempUser.findOne({ phone });
+
+    if (tempUser?.phoneOtpResendAfter && tempUser.phoneOtpResendAfter > new Date()) {
+      const waitSeconds = Math.ceil((tempUser.phoneOtpResendAfter - new Date()) / 1000);
+      return res.status(429).json({
+        error: `Wait ${waitSeconds} seconds before requesting another OTP`,
+      });
+    }
+
+    const otp = generateOtp();
 
     if (!tempUser) {
       tempUser = await TempUser.create({
         phone,
         otp,
-        otpExpiry: new Date(Date.now() + 5 * 60 * 1000),
+        otpExpiry: makeExpiry(),
+        phoneOtpResendAfter: makeCooldown(),
+        phoneOtpAttempts: 0,
         isPhoneVerified: false,
         stage: "OTP_SENT",
       });
     } else {
       tempUser.otp = otp;
-      tempUser.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+      tempUser.otpExpiry = makeExpiry();
+      tempUser.phoneOtpResendAfter = makeCooldown();
+      tempUser.phoneOtpAttempts = 0;
       tempUser.isPhoneVerified = false;
       tempUser.stage = "OTP_SENT";
       await tempUser.save();
@@ -59,17 +79,31 @@ exports.verifyOtp = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (tempUser.otp !== otp) {
-      return res.status(400).json({ error: "Invalid OTP" });
+    if (tempUser.phoneOtpAttempts >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({
+        error: "Too many wrong attempts. Request a new OTP.",
+      });
     }
 
     if (!tempUser.otpExpiry || tempUser.otpExpiry < new Date()) {
-      return res.status(400).json({ error: "OTP expired" });
+      return res.status(400).json({ error: "OTP expired. Request a new OTP." });
+    }
+
+    if (tempUser.otp !== otp) {
+      tempUser.phoneOtpAttempts += 1;
+      await tempUser.save();
+
+      return res.status(400).json({
+        error: `Invalid OTP. Attempts left: ${
+          MAX_OTP_ATTEMPTS - tempUser.phoneOtpAttempts
+        }`,
+      });
     }
 
     tempUser.isPhoneVerified = true;
     tempUser.otp = undefined;
     tempUser.otpExpiry = undefined;
+    tempUser.phoneOtpAttempts = 0;
     tempUser.stage = "PHONE_VERIFIED";
 
     await tempUser.save();
@@ -100,8 +134,6 @@ exports.sendEmailOtp = async (req, res) => {
       return res.status(400).json({ error: "Enter a valid email" });
     }
 
-    const otp = generateOtp();
-
     const tempUser = await TempUser.findById(tempUserId);
 
     if (!tempUser) {
@@ -112,10 +144,27 @@ exports.sendEmailOtp = async (req, res) => {
       return res.status(400).json({ error: "Phone not verified" });
     }
 
+    if (tempUser.emailOtpResendAfter && tempUser.emailOtpResendAfter > new Date()) {
+      const waitSeconds = Math.ceil((tempUser.emailOtpResendAfter - new Date()) / 1000);
+      return res.status(429).json({
+        error: `Wait ${waitSeconds} seconds before requesting another email OTP`,
+      });
+    }
+
+    const existingEmail = await User.findOne({ email: cleanEmail });
+    if (existingEmail) {
+      return res.status(409).json({ error: "Email already registered" });
+    }
+
+    const otp = generateOtp();
+
     tempUser.email = cleanEmail;
     tempUser.emailOtp = otp;
-    tempUser.emailOtpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+    tempUser.emailOtpExpiry = makeExpiry();
+    tempUser.emailOtpResendAfter = makeCooldown();
+    tempUser.emailOtpAttempts = 0;
     tempUser.isEmailVerified = false;
+    tempUser.stage = "EMAIL_OTP_SENT";
 
     await tempUser.save();
 
@@ -142,21 +191,36 @@ exports.verifyEmailOtp = async (req, res) => {
       return res.status(404).json({ error: "Temp user not found" });
     }
 
+    if (tempUser.emailOtpAttempts >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({
+        error: "Too many wrong attempts. Request a new email OTP.",
+      });
+    }
+
     if (!tempUser.emailOtp) {
       return res.status(400).json({ error: "Send email OTP first" });
     }
 
-    if (tempUser.emailOtp !== otp) {
-      return res.status(400).json({ error: "Invalid email OTP" });
+    if (!tempUser.emailOtpExpiry || tempUser.emailOtpExpiry < new Date()) {
+      return res.status(400).json({ error: "Email OTP expired. Request again." });
     }
 
-    if (!tempUser.emailOtpExpiry || tempUser.emailOtpExpiry < new Date()) {
-      return res.status(400).json({ error: "Email OTP expired" });
+    if (tempUser.emailOtp !== otp) {
+      tempUser.emailOtpAttempts += 1;
+      await tempUser.save();
+
+      return res.status(400).json({
+        error: `Invalid email OTP. Attempts left: ${
+          MAX_OTP_ATTEMPTS - tempUser.emailOtpAttempts
+        }`,
+      });
     }
 
     tempUser.isEmailVerified = true;
     tempUser.emailOtp = undefined;
     tempUser.emailOtpExpiry = undefined;
+    tempUser.emailOtpAttempts = 0;
+    tempUser.stage = "EMAIL_VERIFIED";
 
     await tempUser.save();
 
@@ -173,28 +237,68 @@ exports.loginWithPin = async (req, res) => {
     const { identifier, pin } = req.body;
 
     if (!identifier || !pin) {
-      return res.status(400).json({ error: "Missing credentials" });
+      return res.status(400).json({ error: "Phone/email and PIN required" });
     }
 
+    if (!/^[0-9]{5}$/.test(pin)) {
+      return res.status(400).json({ error: "PIN must be exactly 5 digits" });
+    }
+
+    const cleanIdentifier = identifier.trim().toLowerCase();
+
     const user = await User.findOne({
-      $or: [{ phone: identifier }, { email: identifier }],
+      $or: [{ phone: identifier.trim() }, { email: cleanIdentifier }],
     });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (user.lockUntil && user.lockUntil > new Date()) {
+      const waitMinutes = Math.ceil((user.lockUntil - new Date()) / 60000);
+      return res.status(429).json({
+        error: `Too many wrong PIN attempts. Try again after ${waitMinutes} minute(s).`,
+      });
+    }
+
     const match = await bcrypt.compare(pin, user.pin);
 
     if (!match) {
-      return res.status(401).json({ error: "Invalid PIN" });
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+
+      if (user.loginAttempts >= 5) {
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        await user.save();
+
+        return res.status(429).json({
+          error: "Too many wrong PIN attempts. Account locked for 15 minutes.",
+        });
+      }
+
+      await user.save();
+
+      return res.status(401).json({
+        error: `Invalid PIN. Attempts left: ${5 - user.loginAttempts}`,
+      });
     }
 
+    user.loginAttempts = 0;
+    user.lockUntil = undefined;
+    await user.save();
+
     res.json({
-      message: "Login success",
+      message: "Login successful",
+      userId: user._id,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
       digipin: user.digipin,
+      address: user.address,
+      lat: user.lat,
+      lon: user.lon,
     });
   } catch (err) {
+    console.error("LOGIN ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 };

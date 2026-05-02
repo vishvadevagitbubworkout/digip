@@ -7,6 +7,7 @@ function DetailsLocationPage({ tempUserId, onNext }) {
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
+  const [emailCooldown, setEmailCooldown] = useState(0);
 
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -57,13 +58,27 @@ function DetailsLocationPage({ tempUserId, onNext }) {
       });
 
       setMessage("Email OTP sent successfully");
+      startEmailCooldown(30);
+      
     } catch (err) {
       setMessage(err.message);
     } finally {
       setSendingOtp(false);
     }
   };
+const startEmailCooldown = (seconds = 30) => {
+  setEmailCooldown(seconds);
 
+  const timer = setInterval(() => {
+    setEmailCooldown((prev) => {
+      if (prev <= 1) {
+        clearInterval(timer);
+        return 0;
+      }
+      return prev - 1;
+    });
+  }, 1000);
+};
   const verifyEmailOtp = async () => {
     setMessage("");
 
@@ -247,9 +262,18 @@ function DetailsLocationPage({ tempUserId, onNext }) {
         />
       </div>
 
-      <button onClick={sendEmailOtp} disabled={sendingOtp || emailVerified}>
-        {emailVerified ? "Email Verified" : sendingOtp ? "Sending..." : "Send Email OTP"}
-      </button>
+      <button
+  onClick={sendEmailOtp}
+  disabled={sendingOtp || emailVerified || emailCooldown > 0}
+>
+  {emailVerified
+    ? "Email Verified"
+    : sendingOtp
+    ? "Sending..."
+    : emailCooldown > 0
+    ? `Resend Email OTP in ${emailCooldown}s`
+    : "Send Email OTP"}
+</button>
 
       {!emailVerified && (
         <>

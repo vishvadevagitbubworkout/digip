@@ -7,6 +7,21 @@ function PhonePage({ setPhone, onNext }) {
   const [localPhone, setLocalPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  const startCooldown = (seconds = 30) => {
+  setCooldown(seconds);
+
+  const timer = setInterval(() => {
+    setCooldown((prev) => {
+      if (prev <= 1) {
+        clearInterval(timer);
+        return 0;
+      }
+      return prev - 1;
+    });
+  }, 1000);
+};
 
   const sendOtp = async () => {
     setError("");
@@ -35,6 +50,7 @@ function PhonePage({ setPhone, onNext }) {
 
       setPhone(fullPhone);
       onNext();
+      startCooldown(30);  
     } catch (err) {
       setError("Backend is not running or CORS is blocking the request");
     } finally {
@@ -68,9 +84,9 @@ function PhonePage({ setPhone, onNext }) {
         </div>
       </div>
 
-      <button onClick={sendOtp} disabled={loading} className="primary-btn">
-        {loading ? "Sending..." : "Send OTP"}
-      </button>
+      <button onClick={sendOtp} disabled={loading || cooldown > 0}>
+  {loading ? "Sending..." : cooldown > 0 ? `Resend OTP in ${cooldown}s` : "Send OTP"}
+</button>
 
       {error && <p className="error-text">{error}</p>}
     </div>

@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema(
     address: { type: String, required: true, trim: true },
 
     pin: { type: String, required: true },
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: Date,
 
     lat: { type: Number, required: true },
     lon: { type: Number, required: true },

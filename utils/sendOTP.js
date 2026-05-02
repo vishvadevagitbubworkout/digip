@@ -14,4 +14,4 @@ const sendOTP = async (phone, otp) => {
   });
 };
 
-module.exports = sendOTP;git status
+module.exports = sendOTP;
