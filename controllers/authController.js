@@ -241,7 +241,11 @@ exports.loginWithPin = async (req, res) => {
     }
 
     const user = await User.findOne({
-      $or: [{ phone: identifier }, { email: identifier.toLowerCase() }],
+      $or: [
+        { phone: identifier }, 
+        { phone: `+91${identifier.replace(/^\+91/, '')}` },
+        { email: identifier.toLowerCase() }
+      ],
     });
 
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -279,7 +283,15 @@ exports.loginWithPin = async (req, res) => {
 
     res.json({
       message: "Login success",
-      digipin: user.digipin,
+      user: {
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        digipin: user.digipin,
+        address: user.address,
+        lat: user.lat,
+        lon: user.lon,
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
