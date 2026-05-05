@@ -1,6 +1,5 @@
 import { useState } from "react";
-
-const API_BASE = "http://localhost:5000";
+import { API_BASE } from "./api";
 
 function OtpPage({ phone, setTempUserId, onVerified }) {
   const [otp, setOtp] = useState("");
@@ -9,36 +8,29 @@ function OtpPage({ phone, setTempUserId, onVerified }) {
 
   const verifyOtp = async () => {
     setError("");
-
     if (!phone) {
-      setError("Phone number missing. Go back and enter phone again.");
+      setError("Phone number missing. Go back and re-enter.");
       return;
     }
-
     if (!/^[0-9]{6}$/.test(otp)) {
       setError("Enter the 6-digit OTP");
       return;
     }
-
     setLoading(true);
-
     try {
       const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, otp }),
       });
-
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         setError(data.error || data.message || "Invalid OTP");
         return;
       }
-
       setTempUserId(data.tempUserId || data.userId || "");
       onVerified();
-    } catch (err) {
+    } catch {
       setError("Backend is not running or CORS is blocking the request");
     } finally {
       setLoading(false);
@@ -48,10 +40,12 @@ function OtpPage({ phone, setTempUserId, onVerified }) {
   return (
     <div className="fade-in">
       <h2>Enter OTP</h2>
-      <p className="muted">We sent a 6-digit OTP to <b>{phone}</b>.</p>
+      <p className="muted">
+        We sent a 6-digit code to <strong>{phone}</strong>. It expires in 5 minutes.
+      </p>
 
       <div className="input-group">
-        <label>OTP</label>
+        <label>One-Time Password</label>
         <input
           type="text"
           maxLength="6"
@@ -62,11 +56,13 @@ function OtpPage({ phone, setTempUserId, onVerified }) {
         />
       </div>
 
-      <button onClick={verifyOtp} disabled={loading} className="success-btn">
-        {loading ? "Verifying..." : "Verify & Continue"}
+      <button className="btn-success" onClick={verifyOtp} disabled={loading}>
+        {loading
+          ? <span className="btn-loading"><span className="spinner" />Verifying...</span>
+          : "Verify & Continue"}
       </button>
 
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="msg-error">{error}</p>}
     </div>
   );
 }

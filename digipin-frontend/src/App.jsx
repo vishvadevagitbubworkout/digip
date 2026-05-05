@@ -26,7 +26,6 @@ function App() {
       <div className="progress-bar">
         {steps.map((label, index) => {
           const active = step > index;
-
           return (
             <div key={label} className="progress-item">
               <div className={active ? "progress-dot active" : "progress-dot"}>
@@ -43,41 +42,29 @@ function App() {
       {step === 1 && (
         <>
           <PhonePage setPhone={setPhone} onNext={() => setStep(2)} />
-
-          <button
-            type="button"
-            className="secondary-btn"
-            onClick={() => setStep("login")}
-          >
-            Already have an account? Login
+          <button type="button" className="secondary-btn" onClick={() => setStep("login")}>
+            Already have an account? Sign In
           </button>
         </>
       )}
 
       {step === 2 && (
-        <OtpPage
-          phone={phone}
-          setTempUserId={setTempUserId}
-          onVerified={() => setStep(3)}
-        />
+        <OtpPage phone={phone} setTempUserId={setTempUserId} onVerified={() => setStep(3)} />
       )}
 
       {step === 3 && (
-        <DetailsLocationPage
-          phone={phone}
-          tempUserId={tempUserId}
-          onNext={() => setStep(4)}
-        />
+        <DetailsLocationPage phone={phone} tempUserId={tempUserId} onNext={() => setStep(4)} />
       )}
 
       {step === 4 && (
         <div className="success-screen">
-          <div className="success-icon">✅</div>
-          <h2>Setup Complete</h2>
-          <p>Your DigiPIN has been generated and saved successfully.</p>
-
-          <button type="button" onClick={() => setStep("login")}>
-            Go to Login
+          <div className="success-icon">&#10003;</div>
+          <h2 style={{ color: "var(--success)", marginBottom: "10px" }}>Account Created!</h2>
+          <p className="muted" style={{ marginBottom: "24px" }}>
+            Your DigiPIN has been generated and saved securely.
+          </p>
+          <button type="button" className="btn-primary" onClick={() => setStep("login")}>
+            Go to Sign In
           </button>
         </div>
       )}
